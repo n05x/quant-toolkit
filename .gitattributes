@@ -1,0 +1,6 @@
+data/**/*.json filter=lfs diff=lfs merge=lfs -text
+data/**/*.jpg filter=lfs diff=lfs merge=lfs -text
+data/**/*.png filter=lfs diff=lfs merge=lfs -text
+data/**/*.jpeg filter=lfs diff=lfs merge=lfs -text
+data/**/*.webp filter=lfs diff=lfs merge=lfs -text
+data/**/*.jsonl filter=lfs diff=lfs merge=lfs -text

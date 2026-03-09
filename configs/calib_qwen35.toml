@@ -1,0 +1,21 @@
+# Calibration datasets for Qwen3.5-397B-A17B.
+
+[[dataset]]
+path = "text/agentic_coding_calib_v3.jsonl"
+max_len = 1024
+limit = 4096
+
+[[dataset]]
+path = "multimodal/vqa_calib.jsonl"
+max_len = 2048
+multimodal = true
+
+[[dataset]]
+path = "text/diverse_calib.jsonl"
+max_len = 1024
+limit = 4096
+
+[[dataset]]
+path = "text/deep_calib.jsonl"
+max_len = 8192
+

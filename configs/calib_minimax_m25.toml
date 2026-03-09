@@ -1,0 +1,9 @@
+# Calibration datasets for MiniMax M2.5.
+
+[[dataset]]
+path = "text/agentic_coding_calib_generic.jsonl"
+max_len = 1024
+
+[[dataset]]
+path = "text/deep_calib.jsonl"
+max_len = 8192

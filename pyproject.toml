@@ -1,0 +1,25 @@
+[project]
+name = "quantization"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "accelerate>=1.0",
+    "nvidia-modelopt[torch] @ git+https://github.com/NVIDIA/TensorRT-Model-Optimizer.git",
+    "pillow",
+    "protobuf",
+    "requests",
+    "safetensors>=0.4",
+    "sentencepiece",
+    "torch>=2.10",
+    "torchvision",
+    "transformers @ git+https://github.com/huggingface/transformers.git",
+]
+
+[tool.uv]
+index = [
+    { name = "pytorch-cu130", url = "https://download.pytorch.org/whl/cu130" },
+]
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu130" }
+torchvision = { index = "pytorch-cu130" }
