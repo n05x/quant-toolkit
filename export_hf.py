@@ -404,35 +404,6 @@ def _merge_mtp_weights(
     return shard_idx, total_tensors
 
 
-def _tie_gate_up_scales(tensors: dict[str, torch.Tensor]) -> int:
-    """Tie w1/gate_proj and w3/up_proj weight_scale_2 to max within a shard.
-
-    For uncalibrated experts whose scales were computed independently by fallback,
-    we still have the correct quantized weights for each independent scale -- but
-    serving engines need a single fused scale. Using max is conservative (avoids
-    overflow at the cost of slightly reduced dynamic range).
-    """
-    import re
-
-    gate_re = re.compile(r"^(.+)\.(w1|gate_proj)\.weight_scale_2$")
-    tied = 0
-    for key in list(tensors.keys()):
-        m = gate_re.match(key)
-        if not m:
-            continue
-        prefix, which = m.group(1), m.group(2)
-        up_name = "w3" if which == "w1" else "up_proj"
-        partner_key = f"{prefix}.{up_name}.weight_scale_2"
-        if partner_key not in tensors:
-            continue
-        if not torch.equal(tensors[key], tensors[partner_key]):
-            shared = torch.max(tensors[key], tensors[partner_key])
-            tensors[key] = shared
-            tensors[partner_key] = shared.clone()
-            tied += 1
-    return tied
-
-
 def _postprocess_shards(
     export_dir: Path,
     weight_map: dict[str, str],
@@ -464,13 +435,6 @@ def _postprocess_shards(
             k: v for k, v in processed.items()
             if not any(s in k for s in (".k_scale", ".v_scale", ".k_bias", ".v_bias"))
         }
-
-        # Tie w1/w3 (gate/up) weight_scale_2 so serving engines see a single
-        # fused scale. Catches experts whose _amax was computed by fallback
-        # (post-tying) because they weren't activated during calibration.
-        tied_in_shard = _tie_gate_up_scales(processed)
-        if tied_in_shard:
-            print(f"  Tied {tied_in_shard} gate/up weight_scale_2 pairs in {shard_file}")
 
         if set(processed.keys()) != set(shard_data.keys()) or tied_in_shard:
             save_file(processed, str(path))

@@ -51,6 +51,10 @@ parser.add_argument("--resume-amax", type=str, default=None,
                     help="Load amax checkpoint and resume calibration from where it left off.")
 parser.add_argument("--resume-batch", type=int, default=0,
                     help="Skip batches before this number (1-indexed). Use with --resume-amax.")
+parser.add_argument("--calib-method", default="max", choices=["max", "quantile"],
+                    help="Calibration algorithm. 'quantile' uses P2 streaming quantile estimation.")
+parser.add_argument("--save-quantiles", type=str, default=None,
+                    help="Save quantile estimates to this JSON file (quantile calibration only).")
 args = parser.parse_args()
 
 
@@ -59,11 +63,14 @@ args = parser.parse_args()
 # ---------------------------------------------------------------------------
 
 def load_calib_datasets(args):
-    """Return list of dicts with keys: path, limit, batch_size, max_len."""
+    """Return list of dicts with keys: path, limit, batch_size, max_len.
+
+    Also applies [calibration] overrides from the TOML to args if present.
+    """
     if args.calib_config:
         with open(args.calib_config, "rb") as f:
-            cfg = tomllib.load(f)
-        datasets = cfg.get("dataset", [])
+            toml_cfg = tomllib.load(f)
+        datasets = toml_cfg.get("dataset", [])
         if not datasets:
             parser.error(f"No [[dataset]] entries in {args.calib_config}")
         batch_tokens = args.batch_tokens
@@ -75,6 +82,14 @@ def load_calib_datasets(args):
             ds.setdefault("max_len", 4096)
             if "batch_size" not in ds:
                 ds["batch_size"] = max(1, batch_tokens // ds["max_len"])
+
+        # [calibration] section overrides CLI defaults.
+        calib_sec = toml_cfg.get("calibration", {})
+        if "method" in calib_sec:
+            args.calib_method = calib_sec["method"]
+        if "quantiles" in calib_sec:
+            args.quantiles = calib_sec["quantiles"]
+
         return datasets
 
     if not args.calib_jsonl:
@@ -384,9 +399,22 @@ qcfg = copy.deepcopy(mtq.NVFP4_DEFAULT_CFG)
 for pattern, override in cfg.get_all_quant_overrides().items():
     qcfg["quant_cfg"][pattern] = override
 
-print(f"\nQuantizing with NVFP4 (model={args.model})...")
+if args.calib_method == "quantile":
+    qcfg["algorithm"] = "quantile"
+    calib_cfg = {"type": "quantile"}
+    if hasattr(args, "quantiles"):
+        calib_cfg["quantiles"] = args.quantiles
+    qcfg["quant_cfg"]["*input_quantizer"]["calibrator"] = calib_cfg
+
+print(f"\nQuantizing with NVFP4 (model={args.model}, calib={args.calib_method})...")
 model = mtq.quantize(model, qcfg, forward_loop)
 print(f"{'='*60}")
+
+if args.save_quantiles:
+    from modelopt.torch.quantization.calib.quantile import save_quantile_data
+    os.makedirs(os.path.dirname(os.path.abspath(args.save_quantiles)), exist_ok=True)
+    n_saved = save_quantile_data(model, args.save_quantiles)
+    print(f"Saved quantile data for {n_saved} quantizers to {args.save_quantiles}")
 
 
 # ---------------------------------------------------------------------------
