@@ -87,12 +87,13 @@ class StreamingModelLoader:
 
         self.num_gpus = torch.cuda.device_count()
         if gpu_capacity_gib is None:
-            # Auto-detect from first GPU
-            self.gpu_capacity_gib = (
-                torch.cuda.get_device_properties(0).total_memory / 1024**3
-            )
+            # Auto-detect per-GPU capacity
+            self.gpu_capacities_gib = [
+                torch.cuda.get_device_properties(i).total_memory / 1024**3
+                for i in range(self.num_gpus)
+            ]
         else:
-            self.gpu_capacity_gib = gpu_capacity_gib
+            self.gpu_capacities_gib = [gpu_capacity_gib] * self.num_gpus
 
         self.snapshot_dir = _resolve_snapshot_dir(model_id)
         index_path = os.path.join(self.snapshot_dir, "model.safetensors.index.json")
@@ -201,7 +202,6 @@ class StreamingModelLoader:
         # Reserve headroom per storage GPU for CUDA context, driver memory,
         # and PyTorch allocator fragmentation from loading many small tensors.
         gpu_headroom = 4.0 * 1024**3
-        gpu_capacity = self.gpu_capacity_gib * 1024**3 - gpu_headroom
         cpu_capacity = self.cpu_capacity_gib * 1024**3
 
         # GPU 0 is reserved for execution — start packing from GPU 1
@@ -214,6 +214,7 @@ class StreamingModelLoader:
 
             placed = False
             while current_gpu < self.num_gpus:
+                gpu_capacity = self.gpu_capacities_gib[current_gpu] * 1024**3 - gpu_headroom
                 if gpu_used + size <= gpu_capacity:
                     storage_map[i] = f"cuda:{current_gpu}"
                     gpu_used += size
