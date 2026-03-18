@@ -199,9 +199,6 @@ class StreamingModelLoader:
     def _compute_storage_map(self, layer_sizes):
         """Assign each layer to a storage device: cuda:1-N, cpu, or meta (disk)."""
         storage_map = {}
-        # Reserve headroom per storage GPU for CUDA context, driver memory,
-        # and PyTorch allocator fragmentation from loading many small tensors.
-        gpu_headroom = 4.0 * 1024**3
         cpu_capacity = self.cpu_capacity_gib * 1024**3
 
         # GPU 0 is reserved for execution — start packing from GPU 1
@@ -214,7 +211,10 @@ class StreamingModelLoader:
 
             placed = False
             while current_gpu < self.num_gpus:
-                gpu_capacity = self.gpu_capacities_gib[current_gpu] * 1024**3 - gpu_headroom
+                # Reserve ~4% headroom for CUDA context, driver memory,
+                # and PyTorch allocator fragmentation.
+                gpu_total = self.gpu_capacities_gib[current_gpu] * 1024**3
+                gpu_capacity = gpu_total * 0.96
                 if gpu_used + size <= gpu_capacity:
                     storage_map[i] = f"cuda:{current_gpu}"
                     gpu_used += size
