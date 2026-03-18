@@ -1,7 +1,7 @@
 from .base import ModelQuantConfig
 
 
-Glm4_7Config = _Glm4_7Config(
+Glm4_7Config = ModelQuantConfig(
     model_id="zai-org/GLM-4.7",
     trust_remote_code=True,
     streaming=True,
@@ -12,9 +12,9 @@ Glm4_7Config = _Glm4_7Config(
 )
 
 
-class _Glm4_7Config(ModelQuantConfig):
-    def register_moe(self):
-        from moe_registry import register_glm4_7_moe_for_quantization
-        register_glm4_7_moe_for_quantization()
+def _register_moe():
+    from moe_registry import register_glm4_7_moe_for_quantization
+    register_glm4_7_moe_for_quantization()
 
 
+Glm4_7Config.register_moe = _register_moe
